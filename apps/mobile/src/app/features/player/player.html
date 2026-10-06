@@ -1,0 +1,28 @@
+@if (failed()) {
+  <div class="player">
+    <div class="player-column failed">
+      <p>這一輪無法開始</p>
+      <button type="button" class="text-action" (click)="exit()">回到首頁</button>
+    </div>
+  </div>
+} @else {
+  <div class="player">
+    <div class="player-column">
+      <header class="player-bar">
+        <button type="button" class="text-action" (click)="exit()">離開</button>
+        <p>{{ title() }}</p>
+      </header>
+      <div class="visual" #visualHost></div>
+      <p class="phase">{{ phaseLabel() }}</p>
+      <p class="count">{{ seconds() }} 秒</p>
+      <p class="line" [style.opacity]="opacity()">{{ line() }}</p>
+      <div class="track" aria-hidden="true">
+        <i></i>
+        <span class="dot" [style.left.%]="progress()"></span>
+      </div>
+      <button type="button" class="text-action pause" (click)="toggle()">
+        {{ paused() ? '繼續' : '暫停' }}
+      </button>
+    </div>
+  </div>
+}

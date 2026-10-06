@@ -1,0 +1,38 @@
+@use '../../../shared/frontend/styles/tokens';
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.shell {
+  box-sizing: border-box;
+  max-width: var(--column);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 28px 24px;
+}
+
+.mark {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+h1 {
+  margin: 14px 0 0;
+  font-family: var(--serif);
+  font-size: 34px;
+  font-weight: 500;
+  line-height: 1.25;
+}

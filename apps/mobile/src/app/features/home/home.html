@@ -1,0 +1,18 @@
+<ion-content [fullscreen]="true">
+  <div class="screen">
+    <p class="mark">Breathwork</p>
+    <h1>把現在，帶到想去的地方。</h1>
+    <div class="sleeves">
+      @for (preset of presets; track preset.id) {
+        <a class="sleeve" [routerLink]="['/session', preset.id, 'customize']">
+          <span class="art" [attr.data-preset]="preset.id"></span>
+          <span class="copy">
+            <span class="title">{{ preset.title }}</span>
+            <span class="desc">{{ preset.description }}</span>
+            <span class="meta">{{ formatDuration(preset.duration) }}</span>
+          </span>
+        </a>
+      }
+    </div>
+  </div>
+</ion-content>

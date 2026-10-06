@@ -1,0 +1,70 @@
+<ion-content>
+  <div class="screen">
+    <p class="mark">{{ durationLabel() }}</p>
+    <h1>{{ title() }}</h1>
+
+    <section>
+      <h2>音樂</h2>
+      <div class="choices">
+        @for (item of tracks; track item.id) {
+          <button
+            type="button"
+            [class.on]="musicTrackId() === item.id"
+            (click)="pickMusic(item.id)"
+          >
+            {{ item.title }}
+          </button>
+        }
+      </div>
+    </section>
+
+    <section>
+      <h2>視覺</h2>
+      <div class="choices">
+        @for (visual of visuals; track visual.id) {
+          <button
+            type="button"
+            [class.on]="visualPreset() === visual.id"
+            (click)="pickVisual(visual.id)"
+          >
+            {{ visual.label }}
+          </button>
+        }
+      </div>
+    </section>
+
+    <section>
+      <h2>肯定句</h2>
+      <ul class="lines">
+        @for (item of affirmations(); track item.id) {
+          <li [class.off]="!item.enabled">
+            <button type="button" class="switch" (click)="toggle(item.id)">
+              {{ item.enabled ? '開' : '關' }}
+            </button>
+            @if (editingId() === item.id) {
+              <input
+                class="sentence-input"
+                [value]="item.text"
+                (blur)="commit(item.id, $event)"
+                (keydown.enter)="commit(item.id, $event)"
+              />
+            } @else {
+              <button type="button" class="sentence" (click)="edit(item.id)">
+                {{ item.text || '寫一句給自己' }}
+              </button>
+            }
+          </li>
+        }
+      </ul>
+      @if (affirmations().length < 8) {
+        <button type="button" class="add" (click)="add()">加一句</button>
+      }
+    </section>
+
+    @if (!canStart() || hint()) {
+      <p class="hint">{{ hint() || '請至少留下一句' }}</p>
+    }
+  </div>
+</ion-content>
+
+<button type="button" class="start" [disabled]="!canStart() || busy()" (click)="begin()">開始</button>
