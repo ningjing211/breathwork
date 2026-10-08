@@ -1,4 +1,5 @@
 import type { Affirmation, BreathPattern, MusicTrack, SessionPreset } from '@app/contracts';
+import { FOUR78_CLOSE_MS, FOUR78_CYCLE_MS, FOUR78_CYCLES, FOUR78_LEAD_MS } from './four78';
 
 export const SESSION_DURATION_MS = 180_000;
 
@@ -8,6 +9,15 @@ export const GENTLE_BREATH: BreathPattern = {
   holdAfterInhale: 0,
   holdAfterExhale: 0,
 };
+
+export const FOUR78_BREATH: BreathPattern = {
+  inhaleDuration: 4,
+  exhaleDuration: 8,
+  holdAfterInhale: 7,
+  holdAfterExhale: 0,
+};
+
+export const FOUR78_DURATION_MS = FOUR78_LEAD_MS + FOUR78_CYCLE_MS * FOUR78_CYCLES + FOUR78_CLOSE_MS;
 
 export const MUSIC_TRACKS: readonly MusicTrack[] = [
   { id: 'ambient', title: 'Ambient', file: '/audio/ambient.wav', bpm: 60 },
@@ -99,6 +109,16 @@ export const SESSION_PRESETS: readonly SessionPreset[] = [
       '夜色只是休息的開始。',
       '我讓呼吸帶我進入安靜。',
     ]),
+  },
+  {
+    id: 'four78',
+    title: '4-7-8',
+    description: '鼻子吸四拍，閉氣七拍，嘴巴慢慢吐八拍。',
+    duration: FOUR78_DURATION_MS,
+    breathPattern: FOUR78_BREATH,
+    musicTrack: track('deep'),
+    visualPreset: 'wave',
+    affirmations: [],
   },
 ];
 

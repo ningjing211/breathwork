@@ -21,7 +21,7 @@
 - `finished`
 - `paused`
 
-循環長度只用吸氣與吐氣。`holdAfterInhale`、`holdAfterExhale` 不產生相位。
+`holdAfterInhale` 大於 0 時，吸氣之後插入 `hold`。`holdAfterExhale` 不產生相位。可選的 `BreathFrame` 在這一輪前後留出 `intro` 與 `close`，中間才跑呼吸循環。
 
 ## AudioEngine
 
@@ -45,7 +45,7 @@
 - `render({ phase, progress })`
 - `destroy()`
 
-`createVisualRenderer(preset, color)` 回傳光球、波或粒子。規模由 `breathAmount` 決定：吸氣 0.72→1，吐氣 1→0.72。不做 shader，不接音訊分析。
+`createVisualRenderer(preset, color)` 回傳光球、波或粒子。規模由 `breathAmount` 決定：吸氣 0.72→1，屏息停在 1，吐氣 1→0.72，開頭與結尾停在 0.72。不做 shader，不接音訊分析。
 
 ## 肯定句
 

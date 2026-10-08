@@ -82,15 +82,32 @@ describe('BreathEngine', () => {
     expect(engine.snapshot(180_000).sessionElapsedMs).toBe(180_000);
   });
 
-  it('does not insert a hold phase when hold fields are non-zero', () => {
-    const engine = new BreathEngine(
-      { ...gentle, holdAfterInhale: 5, holdAfterExhale: 5 },
-      180_000,
-      () => 0,
-    );
+  it('does not add time for a hold after exhale', () => {
+    const engine = new BreathEngine({ ...gentle, holdAfterExhale: 5 }, 180_000, () => 0);
     engine.start(0);
-    const atNineSeconds = engine.snapshot(9000);
-    expect(atNineSeconds.phase).toBe('exhale');
-    expect(atNineSeconds.progress).toBeCloseTo(5 / 6);
+    expect(engine.snapshot(4000).phase).toBe('exhale');
+    expect(engine.snapshot(9000).phase).toBe('exhale');
+    expect(engine.snapshot(9000).progress).toBeCloseTo(5 / 6);
+  });
+
+  it('runs the 4-7-8 guide inside a 10 minute window', () => {
+    const pattern = {
+      inhaleDuration: 4,
+      holdAfterInhale: 7,
+      exhaleDuration: 8,
+      holdAfterExhale: 0,
+    };
+    const engine = new BreathEngine(pattern, 600_000, () => 0, { leadMs: 15_000, closeMs: 15_000 });
+    engine.start(0);
+
+    expect(engine.snapshot(0).phase).toBe('intro');
+    expect(engine.snapshot(15_000).phase).toBe('inhale');
+    expect(engine.snapshot(15_000).beat).toBe(1);
+    expect(engine.snapshot(19_000).phase).toBe('hold');
+    expect(engine.snapshot(26_000).phase).toBe('exhale');
+    expect(engine.snapshot(34_000).phase).toBe('inhale');
+    expect(engine.snapshot(584_999).phase).toBe('exhale');
+    expect(engine.snapshot(585_000).phase).toBe('close');
+    expect(engine.snapshot(600_000).finished).toBe(true);
   });
 });

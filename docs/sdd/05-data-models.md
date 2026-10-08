@@ -44,7 +44,7 @@ interface UserSessionConfig {
 }
 ```
 
-共同呼吸：吸氣 4、吐氣 6、兩個閉氣 0。
+前四個預設的呼吸：吸氣 4、吐氣 6、兩個閉氣 0。4-7-8：吸氣 4、吸氣後閉氣 7、吐氣 8、吐氣後閉氣 0，時長 600000 毫秒。4-7-8 沒有肯定句。
 
 | 音樂 id | 標題 | 檔案 | bpm |
 | --- | --- | --- | --- |
@@ -60,6 +60,7 @@ interface UserSessionConfig {
 | trust 相信自己 | organic | wave |
 | ease 放下焦慮 | ambient | particles |
 | sleep 睡前放下 | deep | wave |
+| four78 4-7-8 | deep | wave |
 
 肯定句預設 `enabled: true`。
 

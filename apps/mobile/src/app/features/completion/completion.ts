@@ -7,6 +7,7 @@ const CLOSING: Record<string, string> = {
   trust: '你站在自己這一邊。',
   ease: '這一口氣，先放在這裡。',
   sleep: '可以休息了。',
+  four78: '呼吸回到自己的節奏。',
 };
 
 @Component({

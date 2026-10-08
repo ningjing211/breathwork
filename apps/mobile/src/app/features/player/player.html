@@ -35,7 +35,7 @@
       }
       <div class="visual" #visualHost></div>
       <p class="phase">{{ phaseLabel() }}</p>
-      <p class="count">{{ seconds() }} 秒</p>
+      <p class="count">{{ countText() }}</p>
       <p class="line" [style.opacity]="opacity()">{{ line() }}</p>
       <div class="timeline">
         <div
@@ -60,8 +60,21 @@
           <span>{{ totalLabel() }}</span>
         </div>
       </div>
-      <button type="button" class="text-action pause" (click)="toggle()">
-        {{ paused() ? '繼續' : '暫停' }}
+      <button
+        type="button"
+        class="text-action pause"
+        [attr.aria-label]="paused() ? '繼續' : '暫停'"
+        (click)="toggle()"
+      >
+        @if (paused()) {
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 5.5v13l11-6.5z" />
+          </svg>
+        } @else {
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 5h3.2v14H7zM13.8 5H17v14h-3.2z" />
+          </svg>
+        }
       </button>
     </div>
   </div>

@@ -11,10 +11,11 @@ import {
 import { Router } from '@angular/router';
 import { affirmationFrame } from '../../core/affirmation-schedule';
 import { AudioEngine } from '../../core/audio/audio-engine';
-import { BreathEngine } from '../../core/breath-engine/breath-engine';
+import { BreathEngine, type BreathPhaseName } from '../../core/breath-engine/breath-engine';
 import { BreathCueSpeaker } from '../../core/speech/breath-cue-speaker';
 import { createVisualRenderer } from '../../core/visual-engine/create-visual';
 import type { VisualRenderer } from '../../core/visual-engine/surface';
+import { FOUR78_FRAME, guidedSpeech, isFour78 } from '../../data/four78';
 import { getPreset, getTrack } from '../../data/session-catalog';
 import { SessionDraft } from '../../data/session-draft';
 
@@ -23,6 +24,7 @@ const PRESET_COLOR: Record<string, number> = {
   trust: 0xe6d3a3,
   ease: 0x7f9c98,
   sleep: 0x9a8aa8,
+  four78: 0x8fa3b0,
 };
 
 @Component({
@@ -42,8 +44,10 @@ export class Player implements OnDestroy {
   private visual: VisualRenderer | null = null;
   private frame = 0;
   protected durationMs = 180_000;
-  private spokenPhase: 'inhale' | 'exhale' | null = null;
-  private phase: 'inhale' | 'exhale' = 'inhale';
+  private spokenPhase: BreathPhaseName | null = null;
+  private spokenKey: string | null = null;
+  private phase: BreathPhaseName = 'inhale';
+  private guided = false;
   private trackFile = '';
   private musicRequest = 0;
   private enabledLines: string[] = [];
@@ -53,7 +57,7 @@ export class Player implements OnDestroy {
 
   protected readonly title = signal('');
   protected readonly phaseLabel = signal('吸氣');
-  protected readonly seconds = signal(4);
+  protected readonly countText = signal('4 秒');
   protected readonly line = signal('');
   protected readonly opacity = signal(0);
   protected readonly progress = signal(0);
@@ -81,12 +85,21 @@ export class Player implements OnDestroy {
     this.title.set(preset.title);
     this.durationMs = preset.duration;
     this.totalLabel.set(formatClock(preset.duration));
-    this.seconds.set(preset.breathPattern.inhaleDuration);
+    this.guided = isFour78(preset.id);
+    if (this.guided) {
+      this.voiceOn.set(true);
+      this.countText.set('1');
+    }
     this.enabledLines = config.affirmations
       .filter((item) => item.enabled && item.text.trim())
       .map((item) => item.text);
     this.trackFile = track.file;
-    this.breath = new BreathEngine(preset.breathPattern, preset.duration);
+    this.breath = new BreathEngine(
+      preset.breathPattern,
+      preset.duration,
+      undefined,
+      this.guided ? FOUR78_FRAME : undefined,
+    );
     this.visual = createVisualRenderer(
       config.visualPreset,
       PRESET_COLOR[preset.id] ?? PRESET_COLOR['start'],
@@ -130,8 +143,7 @@ export class Player implements OnDestroy {
     if (this.paused() || !this.breath) {
       return;
     }
-    this.spokenPhase = this.phase;
-    this.cues.speak(this.phase);
+    this.voiceNow(true);
   }
 
   protected toggle(): void {
@@ -149,8 +161,7 @@ export class Player implements OnDestroy {
         }
       }
       if (this.voiceOn()) {
-        this.spokenPhase = this.phase;
-        this.cues.speak(this.phase);
+        this.voiceNow(true);
       }
       this.zone.runOutsideAngular(() => this.tick());
       return;
@@ -275,13 +286,12 @@ export class Player implements OnDestroy {
     const snap = this.breath.snapshot();
     this.phase = snap.phase;
     this.visual?.render({ phase: snap.phase, progress: snap.progress });
-    if (!this.scrubbing && !snap.finished && snap.phase !== this.spokenPhase) {
-      this.spokenPhase = snap.phase;
-      if (this.voiceOn()) {
-        this.cues.speak(snap.phase);
-      }
+    if (!this.scrubbing && !snap.finished) {
+      this.voiceNow(false);
     }
-    this.zone.run(() => this.apply(snap.phase, snap.phaseRemainingMs, snap.sessionElapsedMs));
+    this.zone.run(() =>
+      this.apply(snap.phase, snap.phaseRemainingMs, snap.sessionElapsedMs, snap.beat, snap.progress),
+    );
     if (snap.finished && !this.scrubbing) {
       this.zone.run(() => {
         void this.finish();
@@ -291,12 +301,24 @@ export class Player implements OnDestroy {
     this.frame = requestAnimationFrame(this.tick);
   };
 
-  private apply(phase: 'inhale' | 'exhale', phaseRemainingMs: number, elapsedMs: number): void {
-    this.phaseLabel.set(phase === 'inhale' ? '吸氣' : '吐氣');
-    this.seconds.set(Math.max(1, Math.ceil(phaseRemainingMs / 1000)));
+  private apply(
+    phase: BreathPhaseName,
+    phaseRemainingMs: number,
+    elapsedMs: number,
+    beat = 1,
+    progress = 0,
+  ): void {
+    this.phaseLabel.set(phaseLabel(phase, this.guided));
+    this.countText.set(countLabel(phase, beat, phaseRemainingMs, this.guided));
     this.elapsedMs.set(elapsedMs);
     this.elapsedLabel.set(formatClock(elapsedMs));
     this.progress.set(this.durationMs === 0 ? 0 : (elapsedMs / this.durationMs) * 100);
+    if (this.guided && (phase === 'intro' || phase === 'close')) {
+      const speech = guidedSpeech(phase, progress, beat);
+      this.line.set(speech?.text ?? '');
+      this.opacity.set(speech ? 1 : 0);
+      return;
+    }
     const shown = affirmationFrame(elapsedMs, this.durationMs, this.enabledLines.length);
     this.line.set(shown ? (this.enabledLines[shown.index] ?? '') : '');
     this.opacity.set(shown?.opacity ?? 0);
@@ -358,7 +380,7 @@ export class Player implements OnDestroy {
     if (commit && this.musicOn() && this.audio.status !== 'idle') {
       this.audio.place(snap.sessionElapsedMs / 1000);
     }
-    this.apply(snap.phase, snap.phaseRemainingMs, snap.sessionElapsedMs);
+    this.apply(snap.phase, snap.phaseRemainingMs, snap.sessionElapsedMs, snap.beat, snap.progress);
     if (!commit) {
       return;
     }
@@ -366,11 +388,64 @@ export class Player implements OnDestroy {
       void this.finish();
       return;
     }
-    if (this.voiceOn() && !this.paused()) {
+    this.voiceNow(true);
+  }
+
+  private voiceNow(force: boolean): void {
+    if (!this.voiceOn() || !this.breath || this.paused() || (this.scrubbing && !force)) {
+      return;
+    }
+    const snap = this.breath.snapshot();
+    if (snap.finished) {
+      return;
+    }
+    if (!this.guided) {
+      if (snap.phase !== 'inhale' && snap.phase !== 'exhale') {
+        return;
+      }
+      if (!force && snap.phase === this.spokenPhase) {
+        return;
+      }
       this.spokenPhase = snap.phase;
       this.cues.speak(snap.phase);
+      return;
     }
+    const speech = guidedSpeech(snap.phase, snap.progress, snap.beat);
+    if (!speech) {
+      return;
+    }
+    if (!force && speech.key === this.spokenKey) {
+      return;
+    }
+    this.spokenKey = speech.key;
+    this.cues.speakText(speech.text);
   }
+}
+
+function phaseLabel(phase: BreathPhaseName, guided: boolean): string {
+  if (!guided) {
+    return phase === 'exhale' ? '吐氣' : '吸氣';
+  }
+  if (phase === 'hold') {
+    return '屏息';
+  }
+  if (phase === 'exhale') {
+    return '吐氣';
+  }
+  if (phase === 'inhale') {
+    return '吸氣';
+  }
+  return '';
+}
+
+function countLabel(phase: BreathPhaseName, beat: number, remainingMs: number, guided: boolean): string {
+  if (guided) {
+    if (phase === 'intro' || phase === 'close') {
+      return '';
+    }
+    return String(Math.max(1, beat));
+  }
+  return `${Math.max(1, Math.ceil(remainingMs / 1000))} 秒`;
 }
 
 function formatClock(ms: number): string {

@@ -24,6 +24,13 @@ export class BreathCueSpeaker {
     this.enqueue(text, 1);
   }
 
+  speakText(text: string): void {
+    if (!text.trim()) {
+      return;
+    }
+    this.enqueue(text, 1);
+  }
+
   stop(): void {
     this.invalidate();
     this.job = this.job.then(() => this.halt()).catch(() => undefined);

@@ -33,6 +33,7 @@
       </div>
     </section>
 
+    @if (!guided()) {
     <section>
       <h2>肯定句</h2>
       <ul class="lines">
@@ -60,6 +61,7 @@
         <button type="button" class="add" (click)="add()">加一句</button>
       }
     </section>
+    }
 
     @if (!canStart() || hint()) {
       <p class="hint">{{ hint() || '請至少留下一句' }}</p>

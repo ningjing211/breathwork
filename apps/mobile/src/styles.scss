@@ -129,6 +129,14 @@ h2 {
   );
 }
 
+.art[data-preset='four78'] {
+  background:
+    linear-gradient(#8fa3b0, #8fa3b0) 50% 30% / 22px 1px no-repeat,
+    linear-gradient(#8fa3b0, #8fa3b0) 50% 50% / 36px 1px no-repeat,
+    linear-gradient(#8fa3b0, #8fa3b0) 50% 70% / 48px 1px no-repeat,
+    #141311;
+}
+
 .art[data-preset='sleep'] {
   background:
     radial-gradient(circle at 28% 32%, #9a8aa8 0 2px, transparent 3px),
@@ -390,8 +398,17 @@ mobile-customize ion-content {
 
 .pause {
   align-self: center;
-  min-height: 44px;
-  padding: 8px 16px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+}
+
+.pause svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
 }
 
 .failed,

@@ -2,6 +2,8 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import type { VisualPreset } from '@app/contracts';
 import { IonContent } from '@ionic/angular';
+import { BreathCueSpeaker } from '../../core/speech/breath-cue-speaker';
+import { isFour78 } from '../../data/four78';
 import { formatDuration, getPreset, getTrack, MUSIC_TRACKS } from '../../data/session-catalog';
 import { SessionDraft } from '../../data/session-draft';
 
@@ -32,8 +34,11 @@ export class Customize {
   protected readonly editingId = signal<string | null>(null);
   protected readonly busy = signal(false);
   protected readonly hint = signal('');
-  protected readonly canStart = computed(() =>
-    this.affirmations().some((item) => item.enabled && item.text.trim().length > 0),
+  protected readonly guided = signal(false);
+  protected readonly canStart = computed(
+    () =>
+      this.guided() ||
+      this.affirmations().some((item) => item.enabled && item.text.trim().length > 0),
   );
   protected readonly missing = signal(false);
 
@@ -52,6 +57,7 @@ export class Customize {
     if (!config) {
       return;
     }
+    this.guided.set(isFour78(preset.id));
     this.title.set(preset.title);
     this.durationLabel.set(formatDuration(preset.duration));
     this.musicTrackId.set(config.musicTrackId);
@@ -130,6 +136,9 @@ export class Customize {
     }
     this.busy.set(true);
     this.hint.set('');
+    if (this.guided()) {
+      new BreathCueSpeaker().prime();
+    }
     void this.router.navigateByUrl('/session/play').catch(() => {
       this.busy.set(false);
     });

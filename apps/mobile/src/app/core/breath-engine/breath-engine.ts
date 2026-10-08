@@ -1,10 +1,18 @@
 import type { BreathPattern } from '@app/contracts';
 
-export type BreathPhaseName = 'inhale' | 'exhale';
+export type BreathPhaseName = 'inhale' | 'hold' | 'exhale' | 'intro' | 'close';
+
+export interface BreathFrame {
+  leadMs: number;
+  closeMs: number;
+}
 
 export interface BreathSnapshot {
   phase: BreathPhaseName;
+  /** 此相位內 0 到 1。 */
   progress: number;
+  /** 此相位內第幾秒，從 1 起算。 */
+  beat: number;
   phaseRemainingMs: number;
   sessionElapsedMs: number;
   finished: boolean;
@@ -21,6 +29,7 @@ export class BreathEngine {
     private readonly pattern: BreathPattern,
     private readonly sessionDurationMs: number,
     private readonly now: () => number = () => performance.now(),
+    private readonly frame?: BreathFrame,
   ) {}
 
   start(at = this.now()): void {
@@ -57,23 +66,44 @@ export class BreathEngine {
   snapshot(at = this.now()): BreathSnapshot {
     const rawElapsed = this.elapsedMs(at);
     const elapsed = Math.min(rawElapsed, this.sessionDurationMs);
-    const inhaleMs = this.pattern.inhaleDuration * 1000;
-    const exhaleMs = this.pattern.exhaleDuration * 1000;
-    const cycleMs = inhaleMs + exhaleMs;
-    const into = cycleMs === 0 ? 0 : elapsed % cycleMs;
-    const phase: BreathPhaseName = into < inhaleMs || exhaleMs === 0 ? 'inhale' : 'exhale';
-    const phaseElapsed = phase === 'inhale' ? into : into - inhaleMs;
-    const phaseLength = phase === 'inhale' ? inhaleMs : exhaleMs;
-    const progress = phaseLength === 0 ? 0 : Math.min(1, phaseElapsed / phaseLength);
+    const placed = this.place(elapsed);
+    const progress = placed.length === 0 ? 0 : Math.min(1, placed.elapsed / placed.length);
 
     return {
-      phase,
+      phase: placed.phase,
       progress,
-      phaseRemainingMs: Math.max(0, phaseLength - phaseElapsed),
+      beat: Math.floor(placed.elapsed / 1000) + 1,
+      phaseRemainingMs: Math.max(0, placed.length - placed.elapsed),
       sessionElapsedMs: elapsed,
       finished: this.started && rawElapsed >= this.sessionDurationMs,
       paused: !this.started || this.paused,
     };
+  }
+
+  private place(elapsed: number): { phase: BreathPhaseName; elapsed: number; length: number } {
+    const lead = this.frame?.leadMs ?? 0;
+    const close = this.frame?.closeMs ?? 0;
+    const closeStart = Math.max(lead, this.sessionDurationMs - close);
+    if (lead > 0 && elapsed < lead) {
+      return { phase: 'intro', elapsed, length: lead };
+    }
+    if (close > 0 && elapsed >= closeStart) {
+      return { phase: 'close', elapsed: elapsed - closeStart, length: this.sessionDurationMs - closeStart };
+    }
+
+    const breathElapsed = elapsed - lead;
+    const inhaleMs = this.pattern.inhaleDuration * 1000;
+    const holdMs = this.pattern.holdAfterInhale * 1000;
+    const exhaleMs = this.pattern.exhaleDuration * 1000;
+    const cycleMs = inhaleMs + holdMs + exhaleMs;
+    const into = cycleMs === 0 ? 0 : breathElapsed % cycleMs;
+    if (into < inhaleMs || (exhaleMs === 0 && holdMs === 0)) {
+      return { phase: 'inhale', elapsed: into, length: inhaleMs };
+    }
+    if (into < inhaleMs + holdMs) {
+      return { phase: 'hold', elapsed: into - inhaleMs, length: holdMs };
+    }
+    return { phase: 'exhale', elapsed: into - inhaleMs - holdMs, length: exhaleMs };
   }
 
   private elapsedMs(at: number): number {
