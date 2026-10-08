@@ -46,6 +46,14 @@ export class BreathEngine {
     this.paused = false;
   }
 
+  seek(elapsedMs: number, at = this.now()): void {
+    if (!this.started) {
+      return;
+    }
+    this.elapsedBeforePauseMs = Math.min(this.sessionDurationMs, Math.max(0, elapsedMs));
+    this.originMs = at;
+  }
+
   snapshot(at = this.now()): BreathSnapshot {
     const rawElapsed = this.elapsedMs(at);
     const elapsed = Math.min(rawElapsed, this.sessionDurationMs);

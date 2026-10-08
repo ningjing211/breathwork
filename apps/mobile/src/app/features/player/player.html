@@ -37,9 +37,28 @@
       <p class="phase">{{ phaseLabel() }}</p>
       <p class="count">{{ seconds() }} 秒</p>
       <p class="line" [style.opacity]="opacity()">{{ line() }}</p>
-      <div class="track" aria-hidden="true">
-        <i></i>
-        <span class="dot" [style.left.%]="progress()"></span>
+      <div class="timeline">
+        <div
+          class="track"
+          role="slider"
+          tabindex="0"
+          aria-label="播放時間"
+          [attr.aria-valuemin]="0"
+          [attr.aria-valuemax]="durationMs"
+          [attr.aria-valuenow]="elapsedMs()"
+          (pointerdown)="scrubStart($event)"
+          (pointermove)="scrubMove($event)"
+          (pointerup)="scrubEnd($event)"
+          (pointercancel)="scrubEnd($event)"
+          (keydown)="scrubKey($event)"
+        >
+          <i></i>
+          <span class="dot" [style.left.%]="progress()"></span>
+        </div>
+        <div class="times">
+          <span>{{ elapsedLabel() }}</span>
+          <span>{{ totalLabel() }}</span>
+        </div>
       </div>
       <button type="button" class="text-action pause" (click)="toggle()">
         {{ paused() ? '繼續' : '暫停' }}

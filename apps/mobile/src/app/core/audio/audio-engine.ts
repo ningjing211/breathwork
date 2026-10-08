@@ -1,5 +1,13 @@
 export type AudioStatus = 'idle' | 'playing' | 'paused';
 
+export function loopOffsetSec(sessionElapsedSec: number, loopDurationSec: number): number {
+  if (loopDurationSec <= 0) {
+    return 0;
+  }
+  const wrapped = sessionElapsedSec % loopDurationSec;
+  return wrapped < 0 ? wrapped + loopDurationSec : wrapped;
+}
+
 export interface GainAutomation {
   value: number;
   cancelScheduledValues(time: number): void;
@@ -85,14 +93,24 @@ export class AudioEngine {
     this.offset = 0;
   }
 
-  async play(fadeMs = 1500): Promise<void> {
+  async play(fadeMs = 1500, sessionElapsedSec = 0): Promise<void> {
     if (!this.buffer) {
       throw new Error('audio not loaded');
     }
     await this.ensure().resume();
-    this.offset = 0;
+    this.offset = loopOffsetSec(sessionElapsedSec, this.buffer.duration);
     this.startSource(fadeMs);
     this.state = 'playing';
+  }
+
+  place(sessionElapsedSec: number): void {
+    if (!this.buffer || this.state === 'idle') {
+      return;
+    }
+    this.offset = loopOffsetSec(sessionElapsedSec, this.buffer.duration);
+    if (this.state === 'playing') {
+      this.startSource(0);
+    }
   }
 
   pause(): void {

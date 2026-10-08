@@ -34,6 +34,28 @@ describe('BreathEngine', () => {
     expect(engine.snapshot(10_000).phase).toBe('inhale');
   });
 
+  it('seeks to a later point and keeps moving from there', () => {
+    const engine = new BreathEngine(gentle, 180_000, () => 0);
+    engine.start(0);
+    engine.seek(7000, 10_000);
+
+    const landed = engine.snapshot(10_000);
+    expect(landed.sessionElapsedMs).toBe(7000);
+    expect(landed.phase).toBe('exhale');
+    expect(engine.snapshot(12_000).sessionElapsedMs).toBe(9000);
+  });
+
+  it('seeks while paused without letting time run', () => {
+    const engine = new BreathEngine(gentle, 180_000, () => 0);
+    engine.start(0);
+    engine.pause(2000);
+    engine.seek(7000, 99_000);
+
+    const landed = engine.snapshot(120_000);
+    expect(landed.paused).toBe(true);
+    expect(landed.sessionElapsedMs).toBe(7000);
+  });
+
   it('freezes elapsed time while paused and continues from there', () => {
     const engine = new BreathEngine(gentle, 180_000, () => 0);
     engine.start(0);

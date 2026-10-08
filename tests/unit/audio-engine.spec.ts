@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AudioEngine,
+  loopOffsetSec,
   type AudioBufferLike,
   type AudioContextLike,
   type AudioDeps,
@@ -73,6 +74,14 @@ function harness() {
   };
 }
 
+describe('loopOffsetSec', () => {
+  it('maps a 3 minute session onto a 6 second loop', () => {
+    expect(loopOffsetSec(0, 6)).toBe(0);
+    expect(loopOffsetSec(7, 6)).toBe(1);
+    expect(loopOffsetSec(180, 6)).toBe(0);
+  });
+});
+
 describe('AudioEngine', () => {
   it('stops the previous source when play is called again', async () => {
     const { engine, sources } = harness();
@@ -84,6 +93,37 @@ describe('AudioEngine', () => {
     expect(sources[0]?.stopped).toBe(true);
     expect(sources[1]?.stopped).toBe(false);
     expect(engine.status).toBe('playing');
+  });
+
+  it('starts a loop at the offset for the current session time', async () => {
+    const { engine, sources } = harness();
+    await engine.load('/audio/ambient.wav');
+    await engine.play(0, 7);
+
+    expect(sources.at(-1)?.offset).toBe(1);
+  });
+
+  it('moves a playing loop when the session seeks', async () => {
+    const { engine, sources } = harness();
+    await engine.load('/audio/ambient.wav');
+    await engine.play(0, 0);
+    engine.place(13);
+
+    expect(sources).toHaveLength(2);
+    expect(sources[0]?.stopped).toBe(true);
+    expect(sources[1]?.offset).toBe(1);
+    expect(engine.status).toBe('playing');
+  });
+
+  it('keeps a paused loop at the seeked offset', async () => {
+    const { engine, sources } = harness();
+    await engine.load('/audio/ambient.wav');
+    await engine.play(0, 0);
+    engine.pause();
+    engine.place(13);
+    engine.resume();
+
+    expect(sources.at(-1)?.offset).toBe(1);
   });
 
   it('resumes from the paused offset', async () => {

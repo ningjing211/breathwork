@@ -41,7 +41,7 @@ export class Player implements OnDestroy {
   private breath: BreathEngine | null = null;
   private visual: VisualRenderer | null = null;
   private frame = 0;
-  private durationMs = 180_000;
+  protected durationMs = 180_000;
   private spokenPhase: 'inhale' | 'exhale' | null = null;
   private phase: 'inhale' | 'exhale' = 'inhale';
   private trackFile = '';
@@ -49,6 +49,7 @@ export class Player implements OnDestroy {
   private enabledLines: string[] = [];
   private leaving = false;
   private exited = false;
+  private scrubbing = false;
 
   protected readonly title = signal('');
   protected readonly phaseLabel = signal('吸氣');
@@ -56,6 +57,9 @@ export class Player implements OnDestroy {
   protected readonly line = signal('');
   protected readonly opacity = signal(0);
   protected readonly progress = signal(0);
+  protected readonly elapsedMs = signal(0);
+  protected readonly elapsedLabel = signal('0:00');
+  protected readonly totalLabel = signal('3:00');
   protected readonly paused = signal(false);
   protected readonly failed = signal(false);
   protected readonly voiceOn = signal(false);
@@ -76,6 +80,7 @@ export class Player implements OnDestroy {
     }
     this.title.set(preset.title);
     this.durationMs = preset.duration;
+    this.totalLabel.set(formatClock(preset.duration));
     this.seconds.set(preset.breathPattern.inhaleDuration);
     this.enabledLines = config.affirmations
       .filter((item) => item.enabled && item.text.trim())
@@ -159,6 +164,54 @@ export class Player implements OnDestroy {
     this.paused.set(true);
   }
 
+  protected scrubStart(event: PointerEvent): void {
+    if (!this.breath || this.leaving || this.failed() || this.durationMs <= 0) {
+      return;
+    }
+    const target = event.currentTarget;
+    if (target instanceof HTMLElement) {
+      target.setPointerCapture(event.pointerId);
+    }
+    this.scrubbing = true;
+    this.seekTo(this.ratioFrom(event), false);
+  }
+
+  protected scrubMove(event: PointerEvent): void {
+    if (!this.scrubbing) {
+      return;
+    }
+    this.seekTo(this.ratioFrom(event), false);
+  }
+
+  protected scrubEnd(event: PointerEvent): void {
+    if (!this.scrubbing) {
+      return;
+    }
+    this.scrubbing = false;
+    this.seekTo(this.ratioFrom(event), true);
+  }
+
+  protected scrubKey(event: KeyboardEvent): void {
+    if (!this.breath || this.leaving || this.failed() || this.durationMs <= 0) {
+      return;
+    }
+    const current = this.breath.snapshot().sessionElapsedMs;
+    let next = current;
+    if (event.key === 'ArrowRight') {
+      next = current + 5000;
+    } else if (event.key === 'ArrowLeft') {
+      next = current - 5000;
+    } else if (event.key === 'Home') {
+      next = 0;
+    } else if (event.key === 'End') {
+      next = this.durationMs;
+    } else {
+      return;
+    }
+    event.preventDefault();
+    this.seekTo(next / this.durationMs, true);
+  }
+
   protected exit(): void {
     this.exited = true;
     this.shutdown();
@@ -202,7 +255,8 @@ export class Player implements OnDestroy {
         return;
       }
       if (this.audio.status !== 'playing') {
-        await this.audio.play();
+        const elapsedSec = (this.breath?.snapshot().sessionElapsedMs ?? 0) / 1000;
+        await this.audio.play(1500, elapsedSec);
       }
     } catch {
       if (request !== this.musicRequest || this.leaving) {
@@ -221,14 +275,14 @@ export class Player implements OnDestroy {
     const snap = this.breath.snapshot();
     this.phase = snap.phase;
     this.visual?.render({ phase: snap.phase, progress: snap.progress });
-    if (!snap.finished && snap.phase !== this.spokenPhase) {
+    if (!this.scrubbing && !snap.finished && snap.phase !== this.spokenPhase) {
       this.spokenPhase = snap.phase;
       if (this.voiceOn()) {
         this.cues.speak(snap.phase);
       }
     }
     this.zone.run(() => this.apply(snap.phase, snap.phaseRemainingMs, snap.sessionElapsedMs));
-    if (snap.finished) {
+    if (snap.finished && !this.scrubbing) {
       this.zone.run(() => {
         void this.finish();
       });
@@ -240,7 +294,9 @@ export class Player implements OnDestroy {
   private apply(phase: 'inhale' | 'exhale', phaseRemainingMs: number, elapsedMs: number): void {
     this.phaseLabel.set(phase === 'inhale' ? '吸氣' : '吐氣');
     this.seconds.set(Math.max(1, Math.ceil(phaseRemainingMs / 1000)));
-    this.progress.set((elapsedMs / this.durationMs) * 100);
+    this.elapsedMs.set(elapsedMs);
+    this.elapsedLabel.set(formatClock(elapsedMs));
+    this.progress.set(this.durationMs === 0 ? 0 : (elapsedMs / this.durationMs) * 100);
     const shown = affirmationFrame(elapsedMs, this.durationMs, this.enabledLines.length);
     this.line.set(shown ? (this.enabledLines[shown.index] ?? '') : '');
     this.opacity.set(shown?.opacity ?? 0);
@@ -277,4 +333,49 @@ export class Player implements OnDestroy {
     this.visual?.destroy();
     this.visual = null;
   }
+
+  private ratioFrom(event: PointerEvent): number {
+    const target = event.currentTarget;
+    if (!(target instanceof HTMLElement)) {
+      return 0;
+    }
+    const rect = target.getBoundingClientRect();
+    if (rect.width <= 0) {
+      return 0;
+    }
+    return Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+  }
+
+  private seekTo(ratio: number, commit: boolean): void {
+    if (!this.breath || this.leaving) {
+      return;
+    }
+    const elapsed = Math.min(this.durationMs, Math.max(0, ratio * this.durationMs));
+    this.breath.seek(elapsed);
+    const snap = this.breath.snapshot();
+    this.phase = snap.phase;
+    this.visual?.render({ phase: snap.phase, progress: snap.progress });
+    if (commit && this.musicOn() && this.audio.status !== 'idle') {
+      this.audio.place(snap.sessionElapsedMs / 1000);
+    }
+    this.apply(snap.phase, snap.phaseRemainingMs, snap.sessionElapsedMs);
+    if (!commit) {
+      return;
+    }
+    if (snap.finished) {
+      void this.finish();
+      return;
+    }
+    if (this.voiceOn() && !this.paused()) {
+      this.spokenPhase = snap.phase;
+      this.cues.speak(snap.phase);
+    }
+  }
+}
+
+function formatClock(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }

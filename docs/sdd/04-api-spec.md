@@ -9,6 +9,7 @@
 - `start(now?)`
 - `pause(now?)`
 - `resume(now?)`
+- `seek(elapsedMs, now?)`：把這一輪跳到 0 到時長之間，暫停中不會因此繼續走
 - `snapshot(now?)` → `BreathSnapshot`
 
 `BreathSnapshot`：
@@ -28,7 +29,8 @@
 
 - `prime()`：同步建立 context 並呼叫 `resume()`
 - `load(url)`
-- `play(fadeMs = 1500)`：從 0 開始，先停掉既有 source，再淡入
+- `play(fadeMs = 1500, sessionElapsedSec = 0)`：先停掉既有 source，再淡入。起點是 `sessionElapsedSec` 對循環長度的餘數
+- `place(sessionElapsedSec)`：播放中立刻改到該餘數；暫停中只記住，繼續時從那裡播。尚未播放則不動
 - `pause()` / `resume()`：resume 不重做淡入
 - `stop()`：立刻停止
 - `fadeOut(ms = 1500)`：音量降到 0 後停止
