@@ -12,6 +12,27 @@
         <button type="button" class="text-action" (click)="exit()">離開</button>
         <p>{{ title() }}</p>
       </header>
+      <div class="player-switches">
+        <button
+          type="button"
+          class="text-action"
+          [attr.aria-pressed]="musicOn()"
+          (click)="toggleMusic()"
+        >
+          {{ musicOn() ? '關閉音樂' : '開啟音樂' }}
+        </button>
+        <button
+          type="button"
+          class="text-action"
+          [attr.aria-pressed]="voiceOn()"
+          (click)="toggleVoice()"
+        >
+          {{ voiceOn() ? '關閉人聲' : '開啟人聲' }}
+        </button>
+      </div>
+      @if (musicHint()) {
+        <p class="music-hint">{{ musicHint() }}</p>
+      }
       <div class="visual" #visualHost></div>
       <p class="phase">{{ phaseLabel() }}</p>
       <p class="count">{{ seconds() }} 秒</p>

@@ -2,8 +2,6 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import type { VisualPreset } from '@app/contracts';
 import { IonContent } from '@ionic/angular';
-import { AudioEngine } from '../../core/audio/audio-engine';
-import { BreathCueSpeaker } from '../../core/speech/breath-cue-speaker';
 import { formatDuration, getPreset, getTrack, MUSIC_TRACKS } from '../../data/session-catalog';
 import { SessionDraft } from '../../data/session-draft';
 
@@ -19,8 +17,6 @@ export class Customize {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly draft = inject(SessionDraft);
-  private readonly audio = inject(AudioEngine);
-  private readonly cues = new BreathCueSpeaker();
 
   protected readonly tracks = MUSIC_TRACKS;
   protected readonly visuals: readonly { id: VisualPreset; label: string }[] = [
@@ -134,23 +130,9 @@ export class Customize {
     }
     this.busy.set(true);
     this.hint.set('');
-    this.audio.prime();
-    this.cues.prime();
-    void this.launch(track.file);
-  }
-
-  private async launch(file: string): Promise<void> {
-    try {
-      await this.audio.load(file);
-      await this.audio.play();
-      await this.router.navigateByUrl('/session/play');
-    } catch {
-      this.audio.stop();
-      this.cues.stop();
-      this.hint.set('音樂載入失敗，請再試一次');
-    } finally {
+    void this.router.navigateByUrl('/session/play').catch(() => {
       this.busy.set(false);
-    }
+    });
   }
 
   private persist(): void {

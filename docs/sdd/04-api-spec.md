@@ -58,4 +58,4 @@
 - `hold` → `hold`
 - 其他 → `null`
 
-`BreathCueSpeaker` 只在 `apps/mobile`。`prime()` 在開始按鈕的點擊裡同步呼叫，用音量 0 的空白句解鎖瀏覽器語音。`speak(phase)` 在相位改變時呼叫。`stop()` 用於暫停、離開與結束。底層是 `@capacitor-community/text-to-speech`，`lang` 為 `en-US`，`category` 為 `ambient`，`queueStrategy` 為 `Flush`。
+`BreathCueSpeaker` 只在 `apps/mobile`。人聲預設關閉。「開啟人聲」的點擊直接 `speak` 目前相位。之後 `speak(phase)` 只在人聲開著且相位改變時呼叫。較新的一句會取代還沒說完的上一句。`stop()` 用於關閉人聲、暫停、離開與結束。底層是 `@capacitor-community/text-to-speech`，`lang` 為 `en-US`，`category` 為 `ambient`，`queueStrategy` 為 `Flush`。

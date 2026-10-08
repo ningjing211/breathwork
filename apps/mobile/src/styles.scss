@@ -284,16 +284,32 @@ mobile-customize ion-content {
 }
 
 .player-bar {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   min-height: 44px;
 }
 
 .player-bar p {
+  position: absolute;
+  left: 50%;
   margin: 0;
   font-family: var(--serif);
   font-size: 16px;
+  transform: translateX(-50%);
+}
+
+.player-switches {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.music-hint {
+  margin: 4px 0 0;
+  color: var(--ink-dim);
+  font-size: 13px;
+  text-align: center;
 }
 
 .visual {

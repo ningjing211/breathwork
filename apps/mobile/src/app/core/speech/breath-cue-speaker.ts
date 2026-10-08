@@ -8,8 +8,12 @@ const SPEECH = {
 };
 
 export class BreathCueSpeaker {
+  private generation = 0;
+  private job: Promise<void> = Promise.resolve();
+  private waiters: Array<() => void> = [];
+
   prime(): void {
-    this.say(' ', 0);
+    this.enqueue(' ', 0);
   }
 
   speak(phase: string): void {
@@ -17,27 +21,66 @@ export class BreathCueSpeaker {
     if (!text) {
       return;
     }
-    this.say(text, 1);
+    this.enqueue(text, 1);
   }
 
   stop(): void {
-    try {
-      void TextToSpeech.stop().catch(() => undefined);
-    } catch {
-      // 語音失敗不中斷這一輪。
-    }
+    this.invalidate();
+    this.job = this.job.then(() => this.halt()).catch(() => undefined);
   }
 
-  private say(text: string, volume: number): void {
+  private enqueue(text: string, volume: number): void {
+    const id = this.invalidate();
+    this.job = this.job
+      .then(async () => {
+        if (id !== this.generation) {
+          return;
+        }
+        try {
+          const spoken = TextToSpeech.speak({
+            ...SPEECH,
+            text,
+            volume,
+            rate: 1,
+          }).then(
+            () => undefined,
+            () => undefined,
+          );
+          await Promise.race([spoken, this.cancelled(id)]);
+          if (id !== this.generation) {
+            await this.halt();
+          }
+        } catch {
+          // 語音失敗不中斷這一輪。
+        }
+      })
+      .catch(() => undefined);
+  }
+
+  private invalidate(): number {
+    this.generation += 1;
+    const pending = this.waiters;
+    this.waiters = [];
+    for (const wake of pending) {
+      wake();
+    }
+    return this.generation;
+  }
+
+  private cancelled(id: number): Promise<void> {
+    if (id !== this.generation) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      this.waiters.push(resolve);
+    });
+  }
+
+  private async halt(): Promise<void> {
     try {
-      void TextToSpeech.speak({
-        ...SPEECH,
-        text,
-        volume,
-        rate: 1,
-      }).catch(() => undefined);
+      await TextToSpeech.stop();
     } catch {
-      // SpeechSynthesis 有時會同步丟出例外。
+      // 語音失敗不中斷這一輪。
     }
   }
 }

@@ -43,6 +43,9 @@ export class Player implements OnDestroy {
   private frame = 0;
   private durationMs = 180_000;
   private spokenPhase: 'inhale' | 'exhale' | null = null;
+  private phase: 'inhale' | 'exhale' = 'inhale';
+  private trackFile = '';
+  private musicRequest = 0;
   private enabledLines: string[] = [];
   private leaving = false;
   private exited = false;
@@ -55,6 +58,9 @@ export class Player implements OnDestroy {
   protected readonly progress = signal(0);
   protected readonly paused = signal(false);
   protected readonly failed = signal(false);
+  protected readonly voiceOn = signal(false);
+  protected readonly musicOn = signal(false);
+  protected readonly musicHint = signal('');
 
   constructor() {
     const config = this.draft.get();
@@ -74,6 +80,7 @@ export class Player implements OnDestroy {
     this.enabledLines = config.affirmations
       .filter((item) => item.enabled && item.text.trim())
       .map((item) => item.text);
+    this.trackFile = track.file;
     this.breath = new BreathEngine(preset.breathPattern, preset.duration);
     this.visual = createVisualRenderer(
       config.visualPreset,
@@ -81,8 +88,45 @@ export class Player implements OnDestroy {
     );
 
     afterNextRender(() => {
-      void this.mount(track.file);
+      void this.mount();
     });
+  }
+
+  protected toggleMusic(): void {
+    if (this.leaving || this.failed()) {
+      return;
+    }
+    if (this.musicOn()) {
+      this.musicOn.set(false);
+      this.musicHint.set('');
+      this.musicRequest += 1;
+      this.audio.stop();
+      return;
+    }
+    this.musicOn.set(true);
+    this.musicHint.set('');
+    this.audio.prime();
+    if (this.paused()) {
+      return;
+    }
+    void this.startMusic();
+  }
+
+  protected toggleVoice(): void {
+    if (this.leaving || this.failed()) {
+      return;
+    }
+    if (this.voiceOn()) {
+      this.voiceOn.set(false);
+      this.cues.stop();
+      return;
+    }
+    this.voiceOn.set(true);
+    if (this.paused() || !this.breath) {
+      return;
+    }
+    this.spokenPhase = this.phase;
+    this.cues.speak(this.phase);
   }
 
   protected toggle(): void {
@@ -91,13 +135,25 @@ export class Player implements OnDestroy {
     }
     if (this.paused()) {
       this.breath.resume();
-      this.audio.resume();
       this.paused.set(false);
+      if (this.musicOn()) {
+        if (this.audio.status === 'paused') {
+          this.audio.resume();
+        } else if (this.audio.status !== 'playing') {
+          void this.startMusic();
+        }
+      }
+      if (this.voiceOn()) {
+        this.spokenPhase = this.phase;
+        this.cues.speak(this.phase);
+      }
       this.zone.runOutsideAngular(() => this.tick());
       return;
     }
     this.breath.pause();
-    this.audio.pause();
+    if (this.musicOn()) {
+      this.audio.pause();
+    }
     this.cues.stop();
     cancelAnimationFrame(this.frame);
     this.paused.set(true);
@@ -115,17 +171,13 @@ export class Player implements OnDestroy {
     this.shutdown();
   }
 
-  private async mount(file: string): Promise<void> {
+  private async mount(): Promise<void> {
     const element = this.host()?.nativeElement;
     if (!this.breath || !this.visual || !element || this.exited) {
       return;
     }
     try {
       await this.visual.mount(element);
-      if (this.audio.status !== 'playing') {
-        await this.audio.load(file);
-        await this.audio.play();
-      }
       if (this.exited) {
         this.shutdown();
         return;
@@ -138,15 +190,42 @@ export class Player implements OnDestroy {
     }
   }
 
+  private async startMusic(): Promise<void> {
+    const request = ++this.musicRequest;
+    try {
+      await this.audio.load(this.trackFile);
+      if (request !== this.musicRequest || !this.musicOn() || this.leaving || this.paused()) {
+        return;
+      }
+      if (this.audio.status === 'paused') {
+        this.audio.resume();
+        return;
+      }
+      if (this.audio.status !== 'playing') {
+        await this.audio.play();
+      }
+    } catch {
+      if (request !== this.musicRequest || this.leaving) {
+        return;
+      }
+      this.musicOn.set(false);
+      this.audio.stop();
+      this.musicHint.set('音樂載入失敗，請再試一次');
+    }
+  }
+
   private tick = (): void => {
     if (this.leaving || !this.breath) {
       return;
     }
     const snap = this.breath.snapshot();
+    this.phase = snap.phase;
     this.visual?.render({ phase: snap.phase, progress: snap.progress });
     if (!snap.finished && snap.phase !== this.spokenPhase) {
       this.spokenPhase = snap.phase;
-      this.cues.speak(snap.phase);
+      if (this.voiceOn()) {
+        this.cues.speak(snap.phase);
+      }
     }
     this.zone.run(() => this.apply(snap.phase, snap.phaseRemainingMs, snap.sessionElapsedMs));
     if (snap.finished) {
